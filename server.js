@@ -45,7 +45,11 @@ app.set('mqttManager', mqttManager); // Para funciones avanzadas
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: [
+    process.env.FRONTEND_URL, 
+    'http://localhost:5173',
+    'https://saborhuellitas-frontend.vercel.app'
+  ].filter(Boolean),
   credentials: true
 }));
 app.use(express.json());
