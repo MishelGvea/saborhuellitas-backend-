@@ -1,21 +1,17 @@
-// server.js
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const path = require("path");
 require("dotenv").config();
 
-// Importar configuración (asegúrate de que la ruta sea correcta)
-const config = require("./config"); // Ajusta esta ruta según la ubicación real del archivo
+// Importar configuración
+const config = require("./config");
 
 // Importar el gestor MQTT
-const MQTTManager = require("./utils/mqttManager"); // Ajusta esta ruta según tu estructura
+const MQTTManager = require("./utils/mqttManager");
 const mqttManager = new MQTTManager(config);
-
-// Usar la conexión MQTT existente en lugar de crear una nueva
 const mqttClient = mqttManager.getClient();
 
-// Configurar MQTT para temas del dispensador
+// Configurar MQTT
 const MQTT_TOPICS = {
   RAIZ: config.mqtt.topicRoot || "esp32",
   PESO: "dispensador",
@@ -27,9 +23,7 @@ const MQTT_TOPICS = {
   COMANDO: "comando"
 };
 
-// Manejador de mensajes MQTT
 mqttClient.on('message', (topic, message) => {
-  // Solo registrar mensajes que no sean manejados por MQTTManager
   if (!topic.startsWith(`${MQTT_TOPICS.RAIZ}/`)) {
     console.log(`📩 Mensaje MQTT adicional: ${topic} => ${message.toString()}`);
   }
@@ -38,12 +32,7 @@ mqttClient.on('message', (topic, message) => {
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Hacer disponible el cliente MQTT para los controladores
-app.set('mqttClient', mqttClient);
-app.set('mqttTopics', MQTT_TOPICS);
-app.set('mqttManager', mqttManager); // Para funciones avanzadas
-
-// Middleware
+// Middleware global
 app.use(cors({
   origin: [
     process.env.FRONTEND_URL, 
@@ -55,40 +44,38 @@ app.use(cors({
 app.use(express.json());
 app.use("/uploads", express.static("public/uploads"));
 
-// Importar rutas existentes
-const productosRoutes = require("./routes/productos");
-const nosotrosRoutes = require("./routes/nosotros");
-const inicioRoutes = require("./routes/inicio");
-const sliderRoutes = require("./routes/slider");
-const tiendaRoutes = require("./routes/tienda");
-const pedidosRoutes = require('./routes/pedidosRoutes');
-const preguntasRoutes = require("./routes/preguntas");
+// Hacer disponible el cliente MQTT para otros módulos
+app.set('mqttClient', mqttClient);
+app.set('mqttTopics', MQTT_TOPICS);
+app.set('mqttManager', mqttManager);
 
-// Importar nuevas rutas
-const AuthRoutes = require("./routes/AuthRoutes");
-const MascotaRoutes = require("./routes/MascotaRoutes");
-const ConfiguracionRoutes = require("./routes/ConfiguracionRoutes");
+// Importar y usar rutas
+app.use("/api/proceso_compra", require("./routes/procesoCompra"));
+app.use("/api/iot", require("./routes/iotRoutes"));
+app.use("/api/admin/usuarios", require("./routes/adminUsuariosRoutes"));
+app.use("/api", require("./routes/dashboardRoutes"));
+app.use("/api/historial", require("./routes/historialRoutes"));
+app.use("/api/dispositivos", require("./routes/dispositivosRoutes"));
+app.use("/api/personalizacion", require("./routes/personalizacionRoutes"));
+app.use('/uploads', express.static('public/uploads'));
+app.use('/api/upload', require("./routes/uploadRoutes"));
+app.use("/api/admin/crud/usuarios", require("./routes/adminCRUDUsuariosRoutes"));
+app.use("/api/admin/crud/tienda", require("./routes/tiendaCRUDRoutes"));
+app.use("/api/admin/pedidos", require("./routes/adminPedidosRoutes"));
+app.use("/api/tienda", require("./routes/tienda"));
+app.use("/api/slider", require("./routes/slider"));
+app.use("/api/inicio", require("./routes/inicio"));
+app.use("/api/productos", require("./routes/productos"));
+app.use("/api/nosotros", require("./routes/nosotros"));
+app.use("/api/preguntas", require("./routes/preguntas"));
+app.use('/api/pedidos', require('./routes/pedidosRoutes'));
+app.use("/api/auth", require("./routes/AuthRoutes"));
+app.use("/api/mascotas", require("./routes/MascotaRoutes"));
+app.use("/api/configuracion", require("./routes/ConfiguracionRoutes"));
+app.use("/api/dispensador", require("./routes/dispensadorRoutes"));
+app.use("/api/dispositivos-usuario", require("./routes/dispositivosUsuariosRoutes"));
 
-//Importar Admin
-const iotRoutes = require("./routes/iotRoutes");
-const adminUsuariosRoutes = require("./routes/adminUsuariosRoutes");
-const dashboardRoutes = require("./routes/dashboardRoutes");
-const historialRoutes = require("./routes/historialRoutes");
-const dispositivosRoutes = require("./routes/dispositivosRoutes");
-const personalizacionRoutes = require("./routes/personalizacionRoutes");
-const uploadRoutes = require('./routes/uploadRoutes');
-const adminCRUDUsuariosRoutes = require("./routes/adminCRUDUsuariosRoutes");
-const tiendaCRUDRoutes = require("./routes/tiendaCRUDRoutes");
-const procesoCompraRoutes = require("./routes/procesoCompra");
-const adminPedidosRoutes = require('./routes/adminPedidosRoutes');
-
-// Importar rutas del dispensador
-const dispensadorRoutes = require("./routes/dispensadorRoutes");
-
-// Importar nuevas rutas de dispositivos
-const dispositivosUsuariosRoutes = require("./routes/dispositivosUsuariosRoutes");
-
-// Ruta simple para verificar MQTT
+// Ruta para verificar estado MQTT
 app.get('/api/mqtt-status', (req, res) => {
   res.json({
     mqtt: {
@@ -98,64 +85,22 @@ app.get('/api/mqtt-status', (req, res) => {
   });
 });
 
-// Usar rutas existentes
-app.use("/api/proceso_compra", procesoCompraRoutes);
-app.use("/api/iot", iotRoutes);
-app.use("/api/admin/usuarios", adminUsuariosRoutes);
-app.use("/api", dashboardRoutes);
-app.use("/api/historial", historialRoutes);
-app.use("/api/dispositivos", dispositivosRoutes);
-app.use("/api/personalizacion", personalizacionRoutes);
-app.use('/uploads', express.static('public/uploads'));
-app.use('/api/upload', uploadRoutes);
-app.use("/api/admin/crud/usuarios", adminCRUDUsuariosRoutes);
-app.use("/api/admin/crud/tienda", tiendaCRUDRoutes);
-app.use("/api/admin/pedidos", adminPedidosRoutes);
-app.use("/api/tienda", tiendaRoutes);
-app.use("/api/slider", sliderRoutes);
-app.use("/api/inicio", inicioRoutes);
-app.use("/api/productos", productosRoutes);
-app.use("/api/nosotros", nosotrosRoutes);
-app.use("/api/preguntas", preguntasRoutes);
-app.use('/api/pedidos', pedidosRoutes);
-
-// Usar nuevas rutas
-app.use("/api/auth", AuthRoutes);
-app.use("/api/mascotas", MascotaRoutes);
-app.use("/api/configuracion", ConfiguracionRoutes);
-
-// Usar rutas del dispensador
-app.use("/api/dispensador", dispensadorRoutes);
-
-// Usar rutas de dispositivos usuario
-app.use("/api/dispositivos-usuario", dispositivosUsuariosRoutes);
-
-// Conectar a MongoDB usando URI desde las variables de entorno
+// Conectar a MongoDB y arrancar servidor
 mongoose
   .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => {
-    console.log("✅ Conectado a MongoDB");  
+    console.log("✅ Conectado a MongoDB");
 
     // Verificar conexión a Cloudinary
-    const { testConnection } = require('./utils/cloudinaryUtils'); // Ajusta esta ruta según tu estructura
-    testConnection()
-      .then(connected => {
-        if (connected) {
-          console.log('✅ Conexión a Cloudinary verificada');
-        } else {  
-          console.error('❌ No se pudo conectar a Cloudinary');
-        }
-      });
-
-    // Servir archivos estáticos de Vite (frontend)
-    app.use(express.static(path.join(__dirname, 'dist')));
-
-    // Para cualquier ruta no-API, devolver el frontend
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    const { testConnection } = require('./utils/cloudinaryUtils');
+    testConnection().then(connected => {
+      if (connected) {
+        console.log('✅ Conexión a Cloudinary verificada');
+      } else {
+        console.error('❌ No se pudo conectar a Cloudinary');
+      }
     });
 
-    // ✅ Iniciar servidor aquí y solo una vez
     app.listen(PORT, () => {
       console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
     });
